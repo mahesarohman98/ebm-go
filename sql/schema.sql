@@ -39,3 +39,33 @@ CREATE TABLE IF NOT EXISTS BookTags(
     FOREIGN KEY (bookId) REFERENCES Books(bookId),
     FOREIGN KEY (tag) REFERENCES Tags(tag)
 );
+
+CREATE VIRTUAL TABLE IF NOT EXISTS BooksFts USING fts5(
+   bookId, title, isbn, createDate, modifiedDate 
+);
+
+CREATE TRIGGER InsertBookFts
+    AFTER INSERT ON Books
+BEGIN
+    INSERT INTO BooksFts(bookId, title, isbn, createDate,modifiedDate)
+VALUES (NEW.bookId, New.title, NEW.isbn, NEW.createDate, NEW.modifiedDate);
+END;
+
+CREATE TRIGGER UpdateBookFts
+    AFTER UPDATE ON Books
+BEGIN
+    UPDATE BooksFts
+    SET
+        title = NEW.title,
+        isbn = NEW.isbn,
+        modifiedDate = NEW.modifiedDate
+    WHERE
+        bookId = NEW.bookId;
+END;
+
+CREATE TRIGGER DeleteBookFts
+    AFTER DELETE ON Books
+BEGIN
+    DELETE FROM BooksFts
+    WHERE bookId = OLD.bookId;
+END;

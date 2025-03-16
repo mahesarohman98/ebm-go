@@ -2,8 +2,12 @@ package main
 
 import "ebmgo/cmd"
 
-var Apps map[string]Command = map[string]Command{
-	"import": cmd.Import,
+var Apps map[string]run = map[string]run{
+	"import": {description: "import books from given path", run: cmd.Import},
+	"list":   {description: "list books in ebm directory", run: cmd.ListBooks},
 }
 
-type Command func(call []string) error
+type run struct {
+	description string
+	run         func(call []string) error
+}

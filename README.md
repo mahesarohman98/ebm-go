@@ -2,6 +2,10 @@
 
 Simple Ebook Management Library In Go
 
+## Installation
+
+    go build -tags sqlite_fts5 .
+
 ## Usage 
 
 ### Import books
@@ -10,8 +14,21 @@ Simple Ebook Management Library In Go
 
     Options:
       -h	Show help
-
-### Example:
+    
+    Examples:
 
     $ ebm import ./sample.pdf
+    
     $ ebm import -h
+
+### List books
+
+    Usage: list [options]
+
+    Options:
+      -s    Filter the results by the search query
+      -h	Show help
+
+    Example:
+
+    $ ebm list -s "modern"

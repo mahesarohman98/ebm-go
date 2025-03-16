@@ -6,11 +6,12 @@ import (
 )
 
 func cmdList() {
-	println("List of commands:\n")
-	for name := range Apps {
-		print(name, ", ")
+	println("EBM-GO\n")
+	println("Simple Ebook Management Library In Go\n")
+	println("Commands:")
+	for name, command := range Apps {
+		println("  ", name, " ", command.description)
 	}
-	println("")
 }
 
 func main() {
@@ -26,7 +27,7 @@ func main() {
 	}
 	args := os.Args
 
-	e := cmd(args[2:])
+	e := cmd.run(args[2:])
 	if e != nil {
 		panic(e)
 	}

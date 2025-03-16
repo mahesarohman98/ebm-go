@@ -10,6 +10,7 @@ import (
 
 // Book is a single/unique book identity. It has many bookfiles to store different book format.
 type Book struct {
+	ID        int
 	ISBN      string
 	Title     string
 	Authors   []string
@@ -124,4 +125,8 @@ func (b *BookManager) ImportBooks(books []Book) error {
 	}
 
 	return nil
+}
+
+func (b *BookManager) GetBooks(pattern string) ([]Book, error) {
+	return b.repo.findBooks(pattern)
 }

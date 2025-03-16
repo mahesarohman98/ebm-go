@@ -9,16 +9,16 @@ import (
 	"os"
 )
 
-var (
-	flagSet  = flag.NewFlagSet("import", flag.PanicOnError)
-	helpFlag = flagSet.Bool("h", false, "Show help")
-)
-
 func Import(call []string) error {
+	flagSet := flag.NewFlagSet("import", flag.PanicOnError)
+	helpFlag := flagSet.Bool("h", false, "Show help")
+
 	flagSet.Parse(call)
 
 	if *helpFlag {
-		help()
+		println("Usage: import [options] [directory]\n")
+		println("Options:")
+		flagSet.PrintDefaults()
 		return nil
 	}
 
@@ -55,10 +55,4 @@ func importBook(path string) error {
 	}
 
 	return ebm.ImportBooks(books)
-}
-
-func help() {
-	println("Usage: import [options] [directory]\n")
-	println("Options:")
-	flagSet.PrintDefaults()
 }

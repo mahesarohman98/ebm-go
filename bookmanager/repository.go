@@ -11,11 +11,11 @@ import (
 )
 
 type SqliteBook struct {
-	BookID       int
-	Title        string
-	ISBN         string
-	CreateDate   time.Time
-	ModifiedDate time.Time
+	BookID       int       `db:"bookID"`
+	Title        string    `db:"title"`
+	ISBN         string    `db:"isbn"`
+	CreateDate   time.Time `db:"createDate"`
+	ModifiedDate time.Time `db:"modifiedDate"`
 }
 
 func newSqliteBook(
@@ -300,4 +300,36 @@ func (repo *BookManagerRepository) batchInsertBooks(tx *sqlx.Tx, books []Book) e
 	}
 
 	return nil
+}
+
+func (repo *BookManagerRepository) findBooks(pattern string) ([]Book, error) {
+	query := `
+        SELECT
+            b.bookId, b.title, b.isbn, b.createDate, b.modifiedDate
+        FROM Books b
+            INNER JOIN BooksFts bf ON bf.bookId = b.bookId
+
+    `
+
+	var args []interface{}
+	if pattern != "" {
+		query += "WHERE bf.BooksFts MATCH $1"
+		args = append(args, pattern)
+	}
+
+	rows, err := repo.db.Queryx(query, args...)
+	if err != nil {
+		return []Book{}, fmt.Errorf("sql query error: %v", err)
+	}
+
+	books := []Book{}
+	for rows.Next() {
+		var b SqliteBook
+		if err := rows.StructScan(&b); err != nil {
+			return []Book{}, fmt.Errorf("struct error: %v", err)
+		}
+		books = append(books, Book{ID: b.BookID, ISBN: b.ISBN, Title: b.Title})
+	}
+
+	return books, nil
 }
