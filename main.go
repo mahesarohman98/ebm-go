@@ -21,6 +21,11 @@ func main() {
 	}
 
 	cmdName := os.Args[1]
+	if cmdName == "-h" {
+		cmdList()
+		return
+	}
+
 	cmd, ok := Apps[cmdName]
 	if !ok {
 		fmt.Print("Could not find apps \"" + cmdName + "\"")
