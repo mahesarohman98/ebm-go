@@ -5,7 +5,7 @@ import "github.com/pirmd/epub"
 func parseMetadataFromEpub(path string) (Metadata, error) {
 	metadata, err := epub.GetMetadataFromFile(path)
 	if err != nil {
-		return Metadata{}, err
+		return Metadata{Title: getTitleFromFilePath(path)}, nil
 	}
 	isbn := ""
 	if len(metadata.Source) > 0 {

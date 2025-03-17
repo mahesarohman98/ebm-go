@@ -8,7 +8,7 @@ import (
 func readMetadataFromPDF(path string) (Metadata, error) {
 	info, err := pdfinfo.Extract(path)
 	if err != nil {
-		return Metadata{}, err
+		return Metadata{Title: getTitleFromFilePath(path)}, nil
 	}
 
 	title := info.Key("Title").Text()

@@ -7,7 +7,7 @@ import (
 func parseMetadataFromMobi(path string) (Metadata, error) {
 	m, err := mobipocket.Open(path)
 	if err != nil {
-		return Metadata{}, err
+		return Metadata{Title: getTitleFromFilePath(path)}, nil
 	}
 	title := ""
 	if len(m.Metadata["title"]) > 0 {
