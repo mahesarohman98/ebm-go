@@ -10,18 +10,38 @@ import (
 
 // Book is a single/unique book identity. It has many bookfiles to store different book format.
 type Book struct {
-	ID        int
-	ISBN      string
-	Title     string
-	Authors   []string
-	Publisher string
-	Tags      []string
-	BookFiles []BookFiles
+	ID           int
+	ISBN         string
+	Title        string
+	Authors      []string
+	uniqueAuthor map[string]bool
+	Publisher    string
+	Tags         []string
+	uniqueTag    map[string]bool
+	BookFiles    []BookFiles
+	uniqueFile   map[string]bool
 }
 
 // AppendFiles appends file to books.
 func (b *Book) AppendFiles(filePath string, fileType string) {
-	b.BookFiles = append(b.BookFiles, BookFiles{FilePath: filePath, FileType: fileType})
+	if !b.uniqueFile[filePath] {
+		b.BookFiles = append(b.BookFiles, BookFiles{FilePath: filePath, FileType: fileType})
+		b.uniqueFile[filePath] = true
+	}
+}
+
+func (b *Book) AppendAuthors(author string) {
+	if !b.uniqueAuthor[author] {
+		b.Authors = append(b.Authors, author)
+		b.uniqueAuthor[author] = true
+	}
+}
+
+func (b *Book) AppendTag(tag string) {
+	if !b.uniqueAuthor[tag] {
+		b.Tags = append(b.Tags, tag)
+		b.uniqueTag[tag] = true
+	}
 }
 
 // BookFiles is a book file with specific filepath and filetype.
@@ -31,15 +51,28 @@ type BookFiles struct {
 }
 
 // NewBook return new instance of book.
-func NewBook(isbn string, title string, author []string, publisher string, tags []string) Book {
-	return Book{
-		ISBN:      isbn,
-		Title:     title,
-		Authors:   author,
-		Publisher: publisher,
-		Tags:      tags,
-		BookFiles: []BookFiles{},
+func NewBook(isbn string, title string, authors []string, publisher string, tags []string) Book {
+	b := Book{
+		ISBN:         isbn,
+		Title:        title,
+		Authors:      []string{},
+		uniqueAuthor: make(map[string]bool),
+		Publisher:    publisher,
+		Tags:         []string{},
+		uniqueTag:    make(map[string]bool),
+		BookFiles:    []BookFiles{},
+		uniqueFile:   make(map[string]bool),
 	}
+
+	for _, author := range authors {
+		b.AppendAuthors(author)
+	}
+
+	for _, tag := range tags {
+		b.AppendTag(tag)
+	}
+
+	return b
 }
 
 // BookManager manage books by storing it to ebm dir and db.

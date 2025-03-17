@@ -95,6 +95,10 @@ func (repo *repository) batchInsertBooks(tx *sql.Tx, books []Book) error {
 		return nil
 	}
 
+	if err := repo.batchInsertTags(tx, books); err != nil {
+		return nil
+	}
+
 	return nil
 }
 
@@ -222,17 +226,32 @@ func (repo *repository) batchInsertTags(tx *sql.Tx, books []Book) error {
 
 }
 
+type bookDB struct {
+	ID       int
+	Title    string
+	ISBN     string
+	Author   string
+	Tag      *string
+	FilePath string
+	FileType string
+}
+
 func (repo *repository) FindBooks(pattern string) ([]Book, error) {
 	query := `
         SELECT
-            b.bookId, b.title, b.isbn
+            b.bookId, b.title, b.isbn, 
+            ba.author,
+            bt.tag,
+            bf.filePath, bf.fileType
         FROM Books b
-            INNER JOIN BooksFts bf ON bf.bookId = b.bookId
-
+            INNER JOIN BooksFts bfts ON bfts.bookId = b.bookId
+			JOIN BookFiles bf USING(bookId)
+			JOIN BookAuthors ba USING(bookId)
+            LEFT JOIN  BookTags bt USING(bookId)
     `
 	var args []interface{}
 	if pattern != "" {
-		query += "WHERE bf.BooksFts MATCH $1"
+		query += "WHERE bfts.BooksFts MATCH $1"
 		args = append(args, pattern)
 	}
 
@@ -242,13 +261,32 @@ func (repo *repository) FindBooks(pattern string) ([]Book, error) {
 	}
 
 	books := []Book{}
+	currentID := 0
+	currentBook := Book{}
 	for rows.Next() {
-		b := Book{}
-		if err := rows.Scan(&b.ID, &b.Title, &b.ISBN); err != nil {
+		b := bookDB{}
+		if err := rows.Scan(&b.ID, &b.Title, &b.ISBN, &b.Author, &b.Tag, &b.FilePath, &b.FileType); err != nil {
 			return []Book{}, err
 		}
-		books = append(books, b)
+
+		if currentID == 0 {
+			currentBook = NewBook(b.ISBN, b.Title, []string{}, "", []string{})
+			currentBook.ID = b.ID
+			currentID = b.ID
+		} else if b.ID != currentID {
+			books = append(books, currentBook)
+			currentBook = NewBook(b.ISBN, b.Title, []string{}, "", []string{})
+			currentBook.ID = b.ID
+			currentID = b.ID
+		}
+
+		currentBook.AppendAuthors(b.Author)
+		if b.Tag != nil {
+			currentBook.AppendTag(*b.Tag)
+		}
+		currentBook.AppendFiles(b.FilePath, b.FileType)
 	}
+	books = append(books, currentBook)
 
 	return books, nil
 }

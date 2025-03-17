@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 )
 
 func ListBooks(call []string) error {
@@ -37,9 +38,9 @@ func listBooks(query string) error {
 		return err
 	}
 
-	fmt.Fprintln(os.Stdout, "id\t", "title")
+	fmt.Fprintf(os.Stdout, "%-5s %-75s %-60s\n", "ID", "Title", "Author(s)")
 	for _, b := range books {
-		fmt.Fprintln(os.Stdout, b.ID, "\t", b.Title)
+		fmt.Fprintf(os.Stdout, "%-5d %-75s %-60s\n", b.ID, b.Title, strings.Join(b.Authors, " & "))
 	}
 	return nil
 }
