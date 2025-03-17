@@ -223,7 +223,6 @@ func (repo *repository) batchInsertTags(tx *sql.Tx, books []Book) error {
 }
 
 func (repo *repository) FindBooks(pattern string) ([]Book, error) {
-	fmt.Println("findBooks")
 	query := `
         SELECT
             b.bookId, b.title, b.isbn
