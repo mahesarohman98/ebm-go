@@ -1,15 +1,15 @@
 package bookmanager
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
+	_ "github.com/mattn/go-sqlite3"
 	"os"
 	"path/filepath"
-
-	"github.com/jmoiron/sqlx"
 )
 
-func newSqliteConnection(path string) (*sqlx.DB, error) {
+func newSqliteConnection(path string) (*sql.DB, error) {
 	migrate := false
 	// if path not exist, create path and do migate
 	if _, err := os.Stat(path); err != nil {
@@ -19,15 +19,22 @@ func newSqliteConnection(path string) (*sqlx.DB, error) {
 		migrate = true
 	}
 
-	db, err := sqlx.Connect("sqlite3", filepath.Join(path, "ebm.db"))
+	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?cache=shared&mode=rwc", filepath.Join(path, "ebm.db")))
 	if err != nil {
 		return nil, err
 	}
 
 	// Enable foreign keys
-	db.MustExec("PRAGMA foreign_keys = ON;")
+	if _, err := db.Exec("PRAGMA foreign_keys = ON;"); err != nil {
+		return nil, err
+	}
+
 	var foreignKeysEnabled int
-	db.Get(&foreignKeysEnabled, "PRAGMA foreign_keys;") // Check if foreign keys are enabled
+	row := db.QueryRow("PRAGMA foreign_keys;") // Check if foreign keys are enabled
+	if err := row.Scan(&foreignKeysEnabled); err != nil {
+		return nil, err
+	}
+
 	if foreignKeysEnabled != 1 {
 		return nil, errors.New("foreign keys are disable")
 	}
@@ -41,7 +48,7 @@ func newSqliteConnection(path string) (*sqlx.DB, error) {
 	return db, nil
 }
 
-func runMigration(db *sqlx.DB, filepath string) error {
+func runMigration(db *sql.DB, filepath string) error {
 	// Read schema.sql file
 	sqlBytes, err := os.ReadFile(filepath)
 	if err != nil {

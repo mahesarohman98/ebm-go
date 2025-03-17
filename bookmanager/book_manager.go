@@ -44,7 +44,7 @@ func NewBook(isbn string, title string, author []string, publisher string, tags 
 
 // BookManager manage books by storing it to ebm dir and db.
 type BookManager struct {
-	repo      *BookManagerRepository
+	repo      *repository
 	directory string
 }
 
@@ -52,10 +52,14 @@ type BookManager struct {
 func NewBookManager(ebmDir string) (*BookManager, error) {
 	db, err := newSqliteConnection(ebmDir)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed connect sqlite: %v", err)
 	}
-	repo := newBookManagerRepository(db)
+	repo := newRepository(db)
 	return &BookManager{repo: repo, directory: ebmDir}, nil
+}
+
+func (b *BookManager) Close() {
+	b.repo.db.Close()
 }
 
 // ImportBooks copies books from the source directory to the EBM directory
@@ -128,5 +132,5 @@ func (b *BookManager) ImportBooks(books []Book) error {
 }
 
 func (b *BookManager) GetBooks(pattern string) ([]Book, error) {
-	return b.repo.findBooks(pattern)
+	return b.repo.FindBooks(pattern)
 }

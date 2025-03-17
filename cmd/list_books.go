@@ -30,6 +30,7 @@ func listBooks(query string) error {
 	if err != nil {
 		return err
 	}
+	defer ebm.Close()
 
 	books, err := ebm.GetBooks(query)
 	if err != nil {

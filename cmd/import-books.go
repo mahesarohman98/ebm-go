@@ -53,6 +53,7 @@ func importBook(path string) error {
 	if err != nil {
 		return err
 	}
+	defer ebm.Close()
 
 	return ebm.ImportBooks(books)
 }
