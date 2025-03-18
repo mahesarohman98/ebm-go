@@ -4,38 +4,38 @@ Simple Ebook Management Library In Go
 
 ## Installation
 
-### Requirements
+- ### Quick Build Method: 
 
-#### Quick Build Method: 
+  #### Steps:
+    1. Build
+      ```sh
+        go build -tags sqlite_fts5 -ldflags="-s -w" -gcflags '-N -l' .
+      ```
 
-1. Build
-  ```sh
-    go build -tags sqlite_fts5 -ldflags="-s -w" -gcflags '-N -l' .
-  ```
+    2. Run
+      ```sh
+        ./ebmgo
+      ```
 
-2. Run
-  ```sh
-    ./ebmgo
-  ```
+- ### Optimized Build Method (Recommended for smaller, static binary): 
+    #### Requirement
+    - **Musl Toolchain** (for static build):
+    
+    #### Steps:
+    1. Install dependencies 
+      ```sh
+        sudo apt update
+        sudo apt install build-essential musl musl-tools musl-dev
+      ```
 
-#### Optimized Build Method (Recommended for smaller, static binary): 
-- **Go**
-- **Musl Toolchain** (for static build):
-
-1. Install dependencies 
-  ```sh
-    sudo apt update
-    sudo apt install build-essential musl musl-tools musl-dev
-  ```
-
-2. Build
-  ```bash
-    make
-  ```
-3. Run
-  ```sh
-    ./ebmgo
-  ```
+    2. Build
+      ```bash
+        make
+      ```
+    3. Run
+      ```sh
+        ./ebmgo
+      ```
 
 ## Usage 
 
