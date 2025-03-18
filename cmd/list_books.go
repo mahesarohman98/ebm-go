@@ -17,7 +17,7 @@ func ListBooks(call []string) error {
 	flagSet.Parse(call)
 
 	if *helpFlag {
-		println("Usage: findbooks [options]\n")
+		println("Usage: list [options]\n")
 		println("Options:")
 		flagSet.PrintDefaults()
 		return nil
