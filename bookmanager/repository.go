@@ -3,7 +3,6 @@ package bookmanager
 import (
 	"database/sql"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -20,6 +19,7 @@ func newRepository(db *sql.DB) *repository {
 
 func (repo *repository) CreateBooks(
 	fn func() ([]Book, error),
+	rollbackFn func(),
 ) error {
 	tx, err := repo.db.Begin()
 	if err != nil {
@@ -29,7 +29,8 @@ func (repo *repository) CreateBooks(
 	var books []Book
 	defer func() {
 		if err != nil {
-			rollback(tx, books)
+			tx.Rollback()
+			rollbackFn()
 		} else {
 			tx.Commit()
 		}
@@ -357,7 +358,6 @@ func (repo *repository) RemoveBooks(
 	var books []Book
 	defer func() {
 		if err != nil {
-			fmt.Println("rollback err:", err)
 			repo.db.Exec("ROLLBACK")
 			rollbackFn()
 		} else {
@@ -392,13 +392,4 @@ func (repo *repository) RemoveBooks(
 	}
 
 	return nil
-}
-
-func rollback(tx *sql.Tx, books []Book) {
-	tx.Rollback()
-	for _, book := range books {
-		for _, file := range book.BookFiles {
-			os.Remove(file.FilePath)
-		}
-	}
 }

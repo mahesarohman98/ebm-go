@@ -111,53 +111,61 @@ func (b *BookManager) Close() {
 //	error - An error if any operation fails.
 func (b *BookManager) ImportBooks(books []Book) error {
 	insertBook := []Book{} // metadata to store
-	if err := b.repo.CreateBooks(func() ([]Book, error) {
-		for i, book := range books {
-			// create folder to store a book
-			authors := "Unknown"
-			if len(book.Authors) > 0 {
-				authors = strings.Join(book.Authors, ",")
-			}
-			path := filepath.Join(b.directory, authors, book.Title)
-			if err := os.MkdirAll(path, 0750); err != nil {
-				return []Book{}, err
-			}
-
-			newBook := NewBook(book.ISBN, book.Title, book.Authors, book.Publisher, book.Tags)
-			for j, file := range book.BookFiles {
-				filename := fmt.Sprintf("%s - %s%s", book.Title, authors, filepath.Ext(file.FilePath))
-				destPath := filepath.Join(path, filename)
-
-				// if already exist, skip
-				if _, err := os.Stat(destPath); !os.IsNotExist(err) {
-					continue
+	if err := b.repo.CreateBooks(
+		func() ([]Book, error) {
+			for i, book := range books {
+				// create folder to store a book
+				authors := "Unknown"
+				if len(book.Authors) > 0 {
+					authors = strings.Join(book.Authors, ",")
 				}
-				// Copy and paste file
-				// Update books[i].Path
-				srcFile, err := os.Open(file.FilePath) // Source file to copy
-				if err != nil {
+				path := filepath.Join(b.directory, authors, book.Title)
+				if err := os.MkdirAll(path, 0750); err != nil {
 					return []Book{}, err
 				}
-				defer srcFile.Close()
-				destFile, err := os.Create(destPath) // Destination to paste
-				if err != nil {
-					return []Book{}, err
-				}
-				defer destFile.Close()
-				if _, err := io.Copy(destFile, srcFile); err != nil {
-					return []Book{}, err
-				}
-				books[i].BookFiles[j].FilePath = destPath
-				newBook.AppendFiles(books[i].BookFiles[j].FilePath, books[i].BookFiles[j].FileType)
-			}
-			if len(newBook.BookFiles) > 0 {
-				insertBook = append(insertBook, newBook)
-			}
-		}
 
-		return insertBook, nil
+				newBook := NewBook(book.ISBN, book.Title, book.Authors, book.Publisher, book.Tags)
+				for j, file := range book.BookFiles {
+					filename := fmt.Sprintf("%s - %s%s", book.Title, authors, filepath.Ext(file.FilePath))
+					destPath := filepath.Join(path, filename)
 
-	}); err != nil {
+					// if already exist, skip
+					if _, err := os.Stat(destPath); !os.IsNotExist(err) {
+						continue
+					}
+					// Copy and paste file
+					// Update books[i].Path
+					srcFile, err := os.Open(file.FilePath) // Source file to copy
+					if err != nil {
+						return []Book{}, err
+					}
+					defer srcFile.Close()
+					destFile, err := os.Create(destPath) // Destination to paste
+					if err != nil {
+						return []Book{}, err
+					}
+					defer destFile.Close()
+					if _, err := io.Copy(destFile, srcFile); err != nil {
+						return []Book{}, err
+					}
+					books[i].BookFiles[j].FilePath = destPath
+					newBook.AppendFiles(books[i].BookFiles[j].FilePath, books[i].BookFiles[j].FileType)
+				}
+				if len(newBook.BookFiles) > 0 {
+					insertBook = append(insertBook, newBook)
+				}
+			}
+
+			return insertBook, nil
+		},
+		func() {
+			for _, book := range insertBook {
+				for _, file := range book.BookFiles {
+					os.Remove(file.FilePath)
+				}
+			}
+		},
+	); err != nil {
 		return err
 	}
 
