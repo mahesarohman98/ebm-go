@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS BookFiles(
     fileType TEXT,
     createDate TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modifiedDate TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(bookId) REFERENCES Books(bookId),
+    FOREIGN KEY(bookId) REFERENCES Books(bookId) ON DELETE CASCADE,
     UNIQUE(bookId, filePath, fileType)
 );
 
@@ -24,8 +24,8 @@ CREATE TABLE IF NOT EXISTS BookAuthors(
     bookId INTEGER NOT NULL,
     author TEXT NOT NULL,
     PRIMARY KEY(bookId, author),
-    FOREIGN KEY (bookId) REFERENCES Books(bookId),
-    FOREIGN KEY (author) REFERENCES Authors(author)
+    FOREIGN KEY (bookId) REFERENCES Books(bookId) ON DELETE CASCADE,
+    FOREIGN KEY (author) REFERENCES Authors(author) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS Tags(
@@ -36,8 +36,8 @@ CREATE TABLE IF NOT EXISTS BookTags(
     bookId INTEGER NOT NULL,
     tag TEXT NOT NULL,
     PRIMARY KEY(bookId, tag),
-    FOREIGN KEY (bookId) REFERENCES Books(bookId),
-    FOREIGN KEY (tag) REFERENCES Tags(tag)
+    FOREIGN KEY (bookId) REFERENCES Books(bookId) ON DELETE CASCADE,
+    FOREIGN KEY (tag) REFERENCES Tags(tag) ON DELETE CASCADE
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS BooksFts USING fts5(

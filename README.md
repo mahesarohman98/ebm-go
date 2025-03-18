@@ -63,3 +63,18 @@ Simple Ebook Management Library In Go
     Example:
 
     $ ebm list -s "modern"
+
+### Remove books
+
+    Usage: remove [options]
+
+    Options:
+      -h	Show help
+      -ids string
+            Book ID to remove. Separe by ','
+
+    Example:
+
+    # ebm remove -ids "1,2,3"
+
+

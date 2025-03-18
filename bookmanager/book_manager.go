@@ -167,3 +167,87 @@ func (b *BookManager) ImportBooks(books []Book) error {
 func (b *BookManager) GetBooks(pattern string) ([]Book, error) {
 	return b.repo.FindBooks(pattern)
 }
+
+func (b *BookManager) RemoveBooks(ids []int) error {
+	var tmpFile []string
+	if err := b.repo.RemoveBooks(
+		ids,
+		func(books []Book) error {
+			for _, book := range books {
+				for _, file := range book.BookFiles {
+					// move files to /tmp directory
+					newPath := strings.ReplaceAll(file.FilePath, b.directory, os.TempDir())
+					err := moveFile(file.FilePath, newPath)
+					if err != nil {
+						return fmt.Errorf("move failed: %v", err)
+					}
+					tmpFile = append(tmpFile, newPath)
+				}
+			}
+			return nil
+		},
+		func() {
+			for _, f := range tmpFile {
+				newPath := strings.ReplaceAll(f, os.TempDir(), b.directory)
+				copyFileContents(f, newPath)
+			}
+		},
+	); err != nil {
+		return err
+	}
+
+	for _, f := range tmpFile {
+		os.Remove(f)
+	}
+
+	return nil
+}
+
+func moveFile(src, dst string) error {
+	// Ensure parent directories exist
+	parentDir := filepath.Dir(dst)
+	err := os.MkdirAll(parentDir, os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("failed to create parent directory: %v", err)
+	}
+
+	err = copyFileContents(src, dst)
+	if err != nil {
+		return fmt.Errorf("copy failed: %v", err)
+	}
+
+	// Remove original file
+	err = os.Remove(src)
+	if err != nil {
+		return fmt.Errorf("remove original failed: %v", err)
+	}
+	return nil
+
+}
+
+func copyFileContents(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	if err != nil {
+		return err
+	}
+
+	// Optional: Copy file permissions
+	info, err := sourceFile.Stat()
+	if err == nil {
+		err = os.Chmod(dst, info.Mode())
+	}
+
+	return err
+}

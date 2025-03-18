@@ -236,6 +236,33 @@ type bookDB struct {
 	FileType string
 }
 
+func parseBooks(bookDBs []bookDB) []Book {
+	books := []Book{}
+	currentID := 0
+	currentBook := Book{}
+	for _, b := range bookDBs {
+		if currentID == 0 {
+			currentBook = NewBook(b.ISBN, b.Title, []string{}, "", []string{})
+			currentBook.ID = b.ID
+			currentID = b.ID
+		} else if b.ID != currentID {
+			books = append(books, currentBook)
+			currentBook = NewBook(b.ISBN, b.Title, []string{}, "", []string{})
+			currentBook.ID = b.ID
+			currentID = b.ID
+		}
+
+		currentBook.AppendAuthors(b.Author)
+		if b.Tag != nil {
+			currentBook.AppendTag(*b.Tag)
+		}
+		currentBook.AppendFiles(b.FilePath, b.FileType)
+	}
+	books = append(books, currentBook)
+
+	return books
+}
+
 func (repo *repository) FindBooks(pattern string) ([]Book, error) {
 	query := `
         SELECT
@@ -257,38 +284,114 @@ func (repo *repository) FindBooks(pattern string) ([]Book, error) {
 
 	rows, err := repo.db.Query(query, args...)
 	if err != nil {
-		return []Book{}, fmt.Errorf("sql query error: %v", err)
+		return []Book{}, fmt.Errorf("query FindBooks error: %v", err)
 	}
-
-	books := []Book{}
-	currentID := 0
-	currentBook := Book{}
+	var booksDBs []bookDB
 	for rows.Next() {
 		b := bookDB{}
 		if err := rows.Scan(&b.ID, &b.Title, &b.ISBN, &b.Author, &b.Tag, &b.FilePath, &b.FileType); err != nil {
 			return []Book{}, err
 		}
-
-		if currentID == 0 {
-			currentBook = NewBook(b.ISBN, b.Title, []string{}, "", []string{})
-			currentBook.ID = b.ID
-			currentID = b.ID
-		} else if b.ID != currentID {
-			books = append(books, currentBook)
-			currentBook = NewBook(b.ISBN, b.Title, []string{}, "", []string{})
-			currentBook.ID = b.ID
-			currentID = b.ID
-		}
-
-		currentBook.AppendAuthors(b.Author)
-		if b.Tag != nil {
-			currentBook.AppendTag(*b.Tag)
-		}
-		currentBook.AppendFiles(b.FilePath, b.FileType)
+		booksDBs = append(booksDBs, b)
 	}
-	books = append(books, currentBook)
+	books := parseBooks(booksDBs)
 
 	return books, nil
+}
+
+func (repo *repository) getBooks(ids []int) ([]Book, error) {
+	placeholders := ""
+	var arg []interface{}
+	for i, id := range ids {
+		if i == len(ids)-1 {
+			placeholders += fmt.Sprintf("$%d", i+1)
+		} else {
+			placeholders += fmt.Sprintf("$%d, ", i+1)
+		}
+		arg = append(arg, id)
+	}
+
+	query := fmt.Sprintf(`
+        SELECT 
+            b.bookId, b.title, b.isbn,
+            ba.author,
+            bt.tag,
+            bf.filePath, bf.fileType
+        FROM Books b
+			JOIN BookFiles bf USING(bookId)
+			JOIN BookAuthors ba USING(bookId)
+            LEFT JOIN  BookTags bt USING(bookId)
+        WHERE
+            b.bookId IN (%s)
+
+        `, placeholders)
+
+	rows, err := repo.db.Query(query, arg...)
+	if err != nil {
+		return []Book{}, fmt.Errorf("query getBooks error: %v", err)
+	}
+
+	var booksDBs []bookDB
+	for rows.Next() {
+		b := bookDB{}
+		if err := rows.Scan(&b.ID, &b.Title, &b.ISBN, &b.Author, &b.Tag, &b.FilePath, &b.FileType); err != nil {
+			return []Book{}, err
+		}
+		booksDBs = append(booksDBs, b)
+	}
+	books := parseBooks(booksDBs)
+
+	return books, nil
+}
+
+func (repo *repository) RemoveBooks(
+	ids []int,
+	fn func(b []Book) error,
+	rollbackFn func(),
+) error {
+	_, err := repo.db.Exec("BEGIN IMMEDIATE")
+	if err != nil {
+		return fmt.Errorf("start tx begin immediate error: %v", err)
+	}
+
+	var books []Book
+	defer func() {
+		if err != nil {
+			fmt.Println("rollback err:", err)
+			repo.db.Exec("ROLLBACK")
+			rollbackFn()
+		} else {
+			repo.db.Exec("COMMIT")
+		}
+	}()
+
+	books, err = repo.getBooks(ids)
+	if err != nil {
+		return err
+	}
+	err = fn(books)
+	if err != nil {
+		return err
+	}
+
+	placeholders := ""
+	var arg []interface{}
+	for i, id := range ids {
+		if i == len(ids)-1 {
+			placeholders += fmt.Sprintf("$%d", i+1)
+		} else {
+			placeholders += fmt.Sprintf("$%d, ", i+1)
+		}
+		arg = append(arg, id)
+	}
+	query := fmt.Sprintf("DELETE FROM books WHERE bookId IN ( %s )", placeholders)
+
+	_, err = repo.db.Exec(query, arg...)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func rollback(tx *sql.Tx, books []Book) {
