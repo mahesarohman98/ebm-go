@@ -1,80 +1,137 @@
 # EBM-GO
 
-Simple Ebook Management Library In Go
+**EBM-GO** (Ebook Management Library in Go) is a simple, fast, and lightweight ebook management tool built in Go. It supports importing, listing, and removing ebooks with ease.
+
+----------
+
+## Features
+
+-   Import and manage ebooks quickly.
+-   Search ebooks using filters.
+-   Static binary build support.
+-   Minimal dependencies.
+
+----------
 
 ## Installation
 
-- ### Quick Build Method: 
+You can install EBM-GO using either the quick build method or the optimized build method.
 
-  #### Steps:
-    1. Build
-      ```sh
-        go build -tags sqlite_fts5 -ldflags="-s -w" -gcflags '-N -l' .
-      ```
+### Quick Build (Development)
 
-    2. Run
-      ```sh
-        ./ebmgo
-      ```
+#### Build:
 
-- ### Optimized Build Method (Recommended for smaller, static binary): 
-    #### Requirement
-    - **Musl Toolchain** (for static build):
-    
-    #### Steps:
-    1. Install dependencies 
-      ```sh
-        sudo apt update
-        sudo apt install build-essential musl musl-tools musl-dev
-      ```
+```bash
+go build -tags sqlite_fts5 -ldflags="-s -w" -gcflags '-N -l' .
 
-    2. Build
-      ```bash
-        make
-      ```
-    3. Run
-      ```sh
-        ./ebmgo
-      ```
+```
 
-## Usage 
+#### Run:
 
-### Import books
+```bash
+./ebmgo
 
-    Usage: import [options] [directory]
+```
 
-    Options:
-      -h	Show help
-    
-    Examples:
+### Optimized Build (Recommended)
 
-    $ ebm import ./sample.pdf
-    
-    $ ebm import -h
+Build a smaller, static binary using **Musl Toolchain**:
 
-### List books
+#### Requirements:
 
-    Usage: list [options]
+```bash
+sudo apt update
+sudo apt install build-essential musl musl-tools musl-dev
 
-    Options:
-      -s    Filter the results by the search query
-      -h	Show help
+```
 
-    Example:
+#### Build:
 
-    $ ebm list -s "modern"
+```bash
+make
 
-### Remove books
+```
 
-    Usage: remove [options]
+#### Run:
 
-    Options:
-      -h	Show help
-      -ids string
-            Book ID to remove. Separe by ','
+```bash
+./ebmgo
 
-    Example:
+```
 
-    # ebm remove -ids "1,2,3"
+----------
 
+## Usage
 
+### Import Books
+
+```bash
+ebm import [options] [directory]
+
+```
+
+**Options:**
+
+-   `-h` — Show help
+
+**Examples:**
+
+```bash
+ebm import ./sample.pdf
+ebm import -h
+
+```
+
+----------
+
+### List Books
+
+```bash
+ebm list [options]
+
+```
+
+**Options:**
+
+-   `-s` — Filter results by search query
+-   `-h` — Show help
+
+**Example:**
+
+```bash
+ebm list -s "modern"
+
+```
+
+----------
+
+### Remove Books
+
+```bash
+ebm remove [options]
+
+```
+
+**Options:**
+
+-   `-ids string` — Comma-separated book IDs to remove
+-   `-h` — Show help
+
+**Example:**
+
+```bash
+ebm remove -ids "1,2,3"
+
+```
+
+----------
+
+## License
+
+This project is licensed under the terms of the GNU General Public License v3.0. See the LICENSE file for details.
+
+----------
+
+## Author
+
+**Mahesa Rohman**
