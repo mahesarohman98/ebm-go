@@ -93,6 +93,7 @@ ebm list [options]
 
 **Options:**
 
+-   `-f` — The fields to display when listing books in the db. Available fields: title, authors, formats. Default: title,authors. (default "title,authors")
 -   `-s` — Filter results by search query
 -   `-h` — Show help
 
