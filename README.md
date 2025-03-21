@@ -72,6 +72,7 @@ ebm import [options] [directory]
 
 **Options:**
 
+-   `-y` — Skip editing book metadata before import
 -   `-h` — Show help
 
 **Examples:**

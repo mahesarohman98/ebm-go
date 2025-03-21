@@ -4,8 +4,6 @@ github.com/antzucaro/matchr v0.0.0-20210222213004-b04723ef80f0/go.mod h1:v3ZDlfV
 github.com/clee/gobipocket v0.0.0-20220206070708-3dade03ac470 h1:KDQIURnTOwqz/5qkbveCU76hYclSIv6V1pyDoaYF4Rs=
 github.com/clee/gobipocket v0.0.0-20220206070708-3dade03ac470/go.mod h1:scYVgxPg/eG+qdwGK4L73U0suGYoL/rMx7xOx5nqDOg=
 github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
-github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
-github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/mahesarohman98/pdfinfo v0.0.0-20250313021004-b16f60a34a4e h1:oXIotTA+JhKwCxiWJpd8GF41PYkWRZw3MgEYN4nUqw0=
 github.com/mahesarohman98/pdfinfo v0.0.0-20250313021004-b16f60a34a4e/go.mod h1:Wd+5DeU3pAnldMA0cvpzhttxMED8iaGcV6UJngNksOQ=
 github.com/mattn/go-runewidth v0.0.10/go.mod h1:RAqKPSqVFrSLVXbA8x7dzmKdmGzieGRCM46jaSJTDAk=

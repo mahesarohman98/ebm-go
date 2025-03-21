@@ -11,6 +11,7 @@ import (
 
 func Import(call []string) error {
 	flagSet := flag.NewFlagSet("import", flag.PanicOnError)
+	skipEditFlag := flagSet.Bool("y", false, "Skip editing book metadata before import")
 	helpFlag := flagSet.Bool("h", false, "Show help")
 
 	flagSet.Parse(call)
@@ -34,19 +35,20 @@ func Import(call []string) error {
 		path = args[0]
 	}
 
-	return importBook(path)
+	return importBook(*skipEditFlag, path)
 
 }
 
-func importBook(path string) error {
-	files, err := bookfinder.GetEbooks(path)
+func importBook(skipEdit bool, path string) error {
+	books, err := bookfinder.GetEbooks(path)
 	if err != nil {
 		return err
 	}
 
-	books, err := editor.PrepareBooksForImport(files)
-	if err != nil {
-		return err
+	if !skipEdit {
+		if err = editor.PrepareBooksForImport(books); err != nil {
+			return err
+		}
 	}
 
 	ebm, err := bookmanager.NewBookManager(bindPath(config.EBMGoLibraryDir))
