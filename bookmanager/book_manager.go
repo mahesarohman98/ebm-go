@@ -172,6 +172,43 @@ func (b *BookManager) ImportBooks(books []Book) error {
 	return nil
 }
 
+func getFilename(filepath string) string {
+	filename := ""
+	for i := len(filepath) - 1; i > 0; i-- {
+		char := filepath[i]
+		switch char {
+		case '/':
+			return filename
+		default:
+			filename = string(char) + filename
+		}
+	}
+
+	return ""
+}
+
+func (h *BookManager) Export(ids []int, dstPath string) error {
+	books, err := h.repo.getBooks(ids)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(dstPath, 0750); err != nil {
+		return err
+	}
+
+	for _, book := range books {
+		for _, file := range book.BookFiles {
+			dst := filepath.Join(dstPath, getFilename(file.FilePath))
+			if err := copyFileContents(file.FilePath, dst); err != nil {
+				fmt.Println("copy file dst to", dst, "error:", err)
+			}
+		}
+	}
+
+	return nil
+}
+
 func (b *BookManager) GetBooks(pattern string) ([]Book, error) {
 	return b.repo.FindBooks(pattern)
 }

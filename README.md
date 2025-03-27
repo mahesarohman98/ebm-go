@@ -85,6 +85,32 @@ ebm import -h
 
 ----------
 
+## Usage
+
+### Export Books
+
+```bash
+ebm export [options] [directory]
+
+```
+
+**Options:**
+
+-   `-ids string` — Comma-separated book IDs to remove
+-   `-h` — Show help
+
+**Examples:**
+
+```bash
+ebm export -ids "1,2" /tmp
+ebm export -h
+
+```
+
+----------
+
+----------
+
 ### List Books
 
 ```bash
