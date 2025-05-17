@@ -6,12 +6,15 @@ import (
 	"ebmgo/config"
 	"ebmgo/editor"
 	"flag"
+	"log"
 	"os"
+	"time"
 )
 
 func Import(call []string) error {
 	flagSet := flag.NewFlagSet("import", flag.PanicOnError)
 	skipEditFlag := flagSet.Bool("y", false, "Skip editing book metadata before import")
+	recursiveFlag := flagSet.Bool("r", false, "import books recursively")
 	helpFlag := flagSet.Bool("h", false, "Show help")
 
 	flagSet.Parse(call)
@@ -35,20 +38,24 @@ func Import(call []string) error {
 		path = args[0]
 	}
 
-	return importBook(*skipEditFlag, path)
+	return importBook(*skipEditFlag, *recursiveFlag, path)
 
 }
 
-func importBook(skipEdit bool, path string) error {
-	books, err := bookfinder.GetEbooks(path)
+func importBook(skipEdit bool, recursive bool, path string) error {
+	now := time.Now()
+	books, err := bookfinder.GetEbooks(recursive, path)
 	if err != nil {
 		return err
 	}
+	log.Println("GetEbooks took", time.Since(now))
 
 	if !skipEdit {
+		now := time.Now()
 		if err = editor.PrepareBooksForImport(books); err != nil {
 			return err
 		}
+		log.Println("PrepareBooksForImport took", time.Since(now))
 	}
 
 	ebm, err := bookmanager.NewBookManager(bindPath(config.EBMGoLibraryDir))
@@ -57,5 +64,8 @@ func importBook(skipEdit bool, path string) error {
 	}
 	defer ebm.Close()
 
-	return ebm.ImportBooks(books)
+	now = time.Now()
+	err = ebm.ImportBooks(books)
+	log.Println("PrepareBooksForImport took", time.Since(now))
+	return err
 }

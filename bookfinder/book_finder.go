@@ -6,16 +6,109 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 var (
 	errNotSupportMimeType = errors.New("unsupported mime type")
 )
 
+type collector struct {
+	books    []bookmanager.Book
+	titleMap map[string]int
+	mu       sync.Mutex
+}
+
+func newCollector() *collector {
+	return &collector{
+		books:    []bookmanager.Book{},
+		titleMap: make(map[string]int),
+	}
+}
+
+func (c *collector) addOrAppendBook(path string) error {
+	f, err := bookparser.Parse(path)
+	if err != nil {
+		if err == bookparser.ErrNotSupportMimeType {
+			return err
+		}
+		return err
+	}
+
+	c.mu.Lock()
+	i, found := c.titleMap[f.Metadata.Title]
+	if found {
+		c.books[i].AppendFiles(f.File.Path, f.File.Type)
+	} else {
+		book := bookmanager.NewBook(
+			f.Metadata.ISBN,
+			f.Metadata.Title,
+			f.Metadata.Authors,
+			f.Metadata.Publisher,
+			f.Metadata.Tags,
+		)
+		book.AppendFiles(f.File.Path, f.File.Type)
+		c.books = append(c.books, book)
+
+		c.titleMap[f.Metadata.Title] = len(c.books) - 1
+	}
+	c.mu.Unlock()
+
+	return nil
+}
+
+func (c *collector) walkDir(recursive bool, path string, jobs chan<- string) error {
+	files, err := os.ReadDir(path)
+	if err != nil {
+		return err
+	}
+
+	for _, item := range files {
+		filePath := filepath.Join(path, item.Name())
+		if item.IsDir() && recursive {
+			if err := c.walkDir(recursive, filePath, jobs); err != nil {
+				continue
+			}
+			continue
+		}
+		jobs <- filePath
+	}
+
+	return nil
+}
+
+func (c *collector) getEbooks(recursive bool, path string) error {
+	jobs := make(chan string)
+	wg := sync.WaitGroup{}
+
+	workerCount := 64
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			for filePath := range jobs {
+				err := c.addOrAppendBook(filePath)
+				if err != nil {
+				}
+			}
+		}(i)
+	}
+
+	go func() {
+		if err := c.walkDir(recursive, path, jobs); err != nil {
+		}
+		close(jobs)
+	}()
+
+	wg.Wait()
+
+	return nil
+}
+
 // GetEbooks return books from the path.
 // If path is directory getEbook return all supported books.
 // If path is file getEbook return books or return error if filetype not supported.
-func GetEbooks(path string) ([]bookmanager.Book, error) {
+func GetEbooks(recursive bool, path string) ([]bookmanager.Book, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return []bookmanager.Book{}, err
@@ -40,55 +133,11 @@ func GetEbooks(path string) ([]bookmanager.Book, error) {
 		return []bookmanager.Book{book}, nil
 	}
 
-	// Path is a dir then list files in this directory
-	f, err := os.OpenFile(path, os.O_RDONLY, 0666)
-	if err != nil {
-		return []bookmanager.Book{}, err
-	}
-	defer f.Close()
-
-	finfo, err := f.Readdir(0)
+	collector := newCollector()
+	err = collector.getEbooks(recursive, path)
 	if err != nil {
 		return []bookmanager.Book{}, err
 	}
 
-	var books []bookmanager.Book
-	mapTitle := make(map[string]int)
-	i := 0
-	for _, item := range finfo {
-		// Skip subs directory
-		if item.IsDir() {
-			continue
-		}
-
-		// Insert files if filetype support
-		// if not skip
-		filePath := filepath.Join(path, item.Name())
-		f, err := bookparser.Parse(filePath)
-		if err != nil {
-			if err == bookparser.ErrNotSupportMimeType {
-				continue
-			}
-			return []bookmanager.Book{}, err
-		}
-
-		j, ok := mapTitle[f.Metadata.Title]
-		if ok {
-			books[j].AppendFiles(f.File.Path, f.File.Type)
-		} else {
-			book := bookmanager.NewBook(
-				f.Metadata.ISBN,
-				f.Metadata.Title,
-				f.Metadata.Authors,
-				f.Metadata.Publisher,
-				f.Metadata.Tags,
-			)
-			book.AppendFiles(f.File.Path, f.File.Type)
-			books = append(books, book)
-			mapTitle[f.Metadata.Title] = len(books) - 1
-		}
-		i++
-	}
-
-	return books, nil
+	return collector.books, nil
 }

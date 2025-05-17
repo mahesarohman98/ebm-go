@@ -3,9 +3,12 @@ package bookmanager
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 )
 
 // Book is a single/unique book identity. It has many bookfiles to store different book format.
@@ -95,6 +98,75 @@ func (b *BookManager) Close() {
 	b.repo.db.Close()
 }
 
+type processBookResult struct {
+	book *Book
+	err  error
+}
+
+// processBookToEBMDir copies books from the source directory to the EBM directory.
+func (b *BookManager) processBookToEBMDir(book *Book, result chan<- processBookResult) {
+	// create folder to store a book
+	authors := "Unknown"
+	if len(book.Authors) > 0 {
+		authors = strings.Join(book.Authors, ",")
+	}
+	path := filepath.Join(b.directory, authors, book.Title)
+	if err := os.MkdirAll(path, 0750); err != nil {
+		result <- processBookResult{
+			book: nil,
+			err:  err,
+		}
+		return
+	}
+
+	newBook := NewBook(book.ISBN, book.Title, book.Authors, book.Publisher, book.Tags)
+	for j, file := range book.BookFiles {
+		filename := fmt.Sprintf("%s - %s%s", book.Title, authors, filepath.Ext(file.FilePath))
+		destPath := filepath.Join(path, filename)
+
+		// if already exist, skip
+		if _, err := os.Stat(destPath); !os.IsNotExist(err) {
+			continue
+		}
+		// Copy and paste file
+		// Update books[i].Path
+		srcFile, err := os.Open(file.FilePath) // Source file to copy
+		if err != nil {
+			result <- processBookResult{
+				book: nil,
+				err:  err,
+			}
+			return
+		}
+		defer srcFile.Close()
+		destFile, err := os.Create(destPath) // Destination to paste
+		if err != nil {
+			result <- processBookResult{
+				book: nil,
+				err:  err,
+			}
+			return
+		}
+		defer destFile.Close()
+		if _, err := io.Copy(destFile, srcFile); err != nil {
+			result <- processBookResult{
+				book: nil,
+				err:  err,
+			}
+			return
+		}
+		book.BookFiles[j].FilePath = destPath
+		newBook.AppendFiles(book.BookFiles[j].FilePath, book.BookFiles[j].FileType)
+	}
+	if len(newBook.BookFiles) > 0 {
+		// insert bookfiles
+		result <- processBookResult{
+			book: &newBook,
+			err:  nil,
+		}
+	}
+}
+
 // ImportBooks copies books from the source directory to the EBM directory
 // and inserts metadata into the database.
 //
@@ -113,50 +185,47 @@ func (b *BookManager) ImportBooks(books []Book) error {
 	insertBook := []Book{} // metadata to store
 	if err := b.repo.CreateBooks(
 		func() ([]Book, error) {
-			for i, book := range books {
-				// create folder to store a book
-				authors := "Unknown"
-				if len(book.Authors) > 0 {
-					authors = strings.Join(book.Authors, ",")
-				}
-				path := filepath.Join(b.directory, authors, book.Title)
-				if err := os.MkdirAll(path, 0750); err != nil {
-					return []Book{}, err
-				}
+			now := time.Now()
 
-				newBook := NewBook(book.ISBN, book.Title, book.Authors, book.Publisher, book.Tags)
-				for j, file := range book.BookFiles {
-					filename := fmt.Sprintf("%s - %s%s", book.Title, authors, filepath.Ext(file.FilePath))
-					destPath := filepath.Join(path, filename)
+			jobs := make(chan *Book)
+			result := make(chan processBookResult)
+			wg := sync.WaitGroup{}
 
-					// if already exist, skip
-					if _, err := os.Stat(destPath); !os.IsNotExist(err) {
-						continue
+			workerCount := 64
+			for i := 0; i < workerCount; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					for book := range jobs {
+						b.processBookToEBMDir(book, result)
 					}
-					// Copy and paste file
-					// Update books[i].Path
-					srcFile, err := os.Open(file.FilePath) // Source file to copy
-					if err != nil {
-						return []Book{}, err
-					}
-					defer srcFile.Close()
-					destFile, err := os.Create(destPath) // Destination to paste
-					if err != nil {
-						return []Book{}, err
-					}
-					defer destFile.Close()
-					if _, err := io.Copy(destFile, srcFile); err != nil {
-						return []Book{}, err
-					}
-					books[i].BookFiles[j].FilePath = destPath
-					newBook.AppendFiles(books[i].BookFiles[j].FilePath, books[i].BookFiles[j].FileType)
-				}
-				if len(newBook.BookFiles) > 0 {
-					insertBook = append(insertBook, newBook)
-				}
+				}()
 			}
 
-			return insertBook, nil
+			go func() {
+				for _, book := range books {
+					jobs <- &book
+				}
+				close(jobs)
+			}()
+
+			go func() {
+				wg.Wait()
+				close(result)
+			}()
+
+			var err error
+			for res := range result {
+				if res.err != nil {
+					err = res.err
+				}
+
+				insertBook = append(insertBook, *res.book)
+			}
+
+			log.Println("prepare to insert from db took", time.Since(now))
+
+			return insertBook, err
 		},
 		func() {
 			for _, book := range insertBook {
