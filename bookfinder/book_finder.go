@@ -1,9 +1,11 @@
 package bookfinder
 
 import (
+	"context"
 	"ebmgo/bookmanager"
 	"ebmgo/bookparser"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -29,9 +31,6 @@ func newCollector() *collector {
 func (c *collector) addOrAppendBook(path string) error {
 	f, err := bookparser.Parse(path)
 	if err != nil {
-		if err == bookparser.ErrNotSupportMimeType {
-			return err
-		}
 		return err
 	}
 
@@ -57,50 +56,61 @@ func (c *collector) addOrAppendBook(path string) error {
 	return nil
 }
 
-func (c *collector) walkDir(recursive bool, path string, jobs chan<- string) error {
+func (c *collector) walkDir(ctx context.Context, cancel context.CancelCauseFunc, recursive bool, path string, jobs chan<- string) {
 	files, err := os.ReadDir(path)
 	if err != nil {
-		return err
+		cancel(err)
+		return
 	}
 
 	for _, item := range files {
 		filePath := filepath.Join(path, item.Name())
 		if item.IsDir() && recursive {
-			if err := c.walkDir(recursive, filePath, jobs); err != nil {
-				continue
-			}
+			c.walkDir(ctx, cancel, recursive, filePath, jobs)
 			continue
 		}
 		jobs <- filePath
 	}
-
-	return nil
 }
 
-func (c *collector) getEbooks(recursive bool, path string) error {
+func (c *collector) getEbooks(worker int, recursive bool, path string) error {
+	ctx, cancel := context.WithCancelCause(context.Background())
 	jobs := make(chan string)
 	wg := sync.WaitGroup{}
 
-	workerCount := 64
-	for i := 0; i < workerCount; i++ {
+	for i := 0; i < worker; i++ {
 		wg.Add(1)
-		go func(id int) {
+		go func() {
 			defer wg.Done()
-			for filePath := range jobs {
-				err := c.addOrAppendBook(filePath)
-				if err != nil {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case filePath, ok := <-jobs:
+					if !ok {
+						return
+					}
+					err := c.addOrAppendBook(filePath)
+					if err != nil {
+						if err != bookparser.ErrNotSupportMimeType {
+							cancel(fmt.Errorf("error add or append book %s %v", filePath, err))
+						}
+					}
 				}
 			}
-		}(i)
+		}()
 	}
 
 	go func() {
-		if err := c.walkDir(recursive, path, jobs); err != nil {
-		}
+		c.walkDir(ctx, cancel, recursive, path, jobs)
 		close(jobs)
 	}()
 
 	wg.Wait()
+
+	if ctx.Err() != nil {
+		return context.Cause(ctx)
+	}
 
 	return nil
 }
@@ -108,7 +118,7 @@ func (c *collector) getEbooks(recursive bool, path string) error {
 // GetEbooks return books from the path.
 // If path is directory getEbook return all supported books.
 // If path is file getEbook return books or return error if filetype not supported.
-func GetEbooks(recursive bool, path string) ([]bookmanager.Book, error) {
+func GetEbooks(worker int, recursive bool, path string) ([]bookmanager.Book, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return []bookmanager.Book{}, err
@@ -134,7 +144,7 @@ func GetEbooks(recursive bool, path string) ([]bookmanager.Book, error) {
 	}
 
 	collector := newCollector()
-	err = collector.getEbooks(recursive, path)
+	err = collector.getEbooks(worker, recursive, path)
 	if err != nil {
 		return []bookmanager.Book{}, err
 	}

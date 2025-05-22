@@ -1,20 +1,22 @@
 package cmd
 
 import (
+	"context"
 	"ebmgo/bookfinder"
 	"ebmgo/bookmanager"
 	"ebmgo/config"
 	"ebmgo/editor"
 	"flag"
-	"log"
 	"os"
-	"time"
+	"os/signal"
+	"syscall"
 )
 
 func Import(call []string) error {
 	flagSet := flag.NewFlagSet("import", flag.PanicOnError)
 	skipEditFlag := flagSet.Bool("y", false, "Skip editing book metadata before import")
 	recursiveFlag := flagSet.Bool("r", false, "import books recursively")
+	workerFlag := flagSet.Int("w", 1, "set worker to import book. Default 1")
 	helpFlag := flagSet.Bool("h", false, "Show help")
 
 	flagSet.Parse(call)
@@ -38,24 +40,32 @@ func Import(call []string) error {
 		path = args[0]
 	}
 
-	return importBook(*skipEditFlag, *recursiveFlag, path)
+	return importBook(*workerFlag, *skipEditFlag, *recursiveFlag, path)
 
 }
 
-func importBook(skipEdit bool, recursive bool, path string) error {
-	now := time.Now()
-	books, err := bookfinder.GetEbooks(recursive, path)
+func importBook(worker int, skipEdit bool, recursive bool, path string) error {
+	// Create a cancellable context
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Trap interrupt signals
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigs
+		cancel()
+	}()
+
+	books, err := bookfinder.GetEbooks(worker, recursive, path)
 	if err != nil {
 		return err
 	}
-	log.Println("GetEbooks took", time.Since(now))
 
 	if !skipEdit {
-		now := time.Now()
 		if err = editor.PrepareBooksForImport(books); err != nil {
 			return err
 		}
-		log.Println("PrepareBooksForImport took", time.Since(now))
 	}
 
 	ebm, err := bookmanager.NewBookManager(bindPath(config.EBMGoLibraryDir))
@@ -64,8 +74,6 @@ func importBook(skipEdit bool, recursive bool, path string) error {
 	}
 	defer ebm.Close()
 
-	now = time.Now()
-	err = ebm.ImportBooks(books)
-	log.Println("PrepareBooksForImport took", time.Since(now))
+	err = ebm.ImportBooks(ctx, worker, books)
 	return err
 }

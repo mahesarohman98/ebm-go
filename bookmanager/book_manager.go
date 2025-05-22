@@ -1,14 +1,13 @@
 package bookmanager
 
 import (
+	"context"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 )
 
 // Book is a single/unique book identity. It has many bookfiles to store different book format.
@@ -181,30 +180,42 @@ func (b *BookManager) processBookToEBMDir(book *Book, result chan<- processBookR
 // Returns:
 //
 //	error - An error if any operation fails.
-func (b *BookManager) ImportBooks(books []Book) error {
-	insertBook := []Book{} // metadata to store
+func (b *BookManager) ImportBooks(ctx context.Context, worker int, books []Book) error {
+	insertBook := []*Book{} // metadata to store
 	if err := b.repo.CreateBooks(
-		func() ([]Book, error) {
-			now := time.Now()
+		ctx,
+		func() ([]*Book, error) {
 
 			jobs := make(chan *Book)
 			result := make(chan processBookResult)
 			wg := sync.WaitGroup{}
 
-			workerCount := 64
-			for i := 0; i < workerCount; i++ {
+			for i := 0; i < worker; i++ {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
-					for book := range jobs {
-						b.processBookToEBMDir(book, result)
+					for {
+						select {
+						case <-ctx.Done():
+							return
+						case book, ok := <-jobs:
+							if !ok {
+								return
+							}
+							b.processBookToEBMDir(book, result)
+						}
 					}
 				}()
 			}
 
 			go func() {
 				for _, book := range books {
-					jobs <- &book
+					select {
+					case <-ctx.Done():
+						close(jobs)
+						return
+					case jobs <- &book:
+					}
 				}
 				close(jobs)
 			}()
@@ -220,10 +231,8 @@ func (b *BookManager) ImportBooks(books []Book) error {
 					err = res.err
 				}
 
-				insertBook = append(insertBook, *res.book)
+				insertBook = append(insertBook, res.book)
 			}
-
-			log.Println("prepare to insert from db took", time.Since(now))
 
 			return insertBook, err
 		},
