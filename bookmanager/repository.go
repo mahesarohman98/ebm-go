@@ -1,6 +1,7 @@
 package bookmanager
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -18,17 +19,18 @@ func newRepository(db *sql.DB) *repository {
 }
 
 func (repo *repository) CreateBooks(
-	fn func() ([]Book, error),
+	ctx context.Context,
+	fn func() ([]*Book, error),
 	rollbackFn func(),
 ) error {
-	tx, err := repo.db.Begin()
+	tx, err := repo.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return err
 	}
 
-	var books []Book
+	var books []*Book
 	defer func() {
-		if err != nil {
+		if err != nil || ctx.Err() != nil {
 			tx.Rollback()
 			rollbackFn()
 		} else {
@@ -44,10 +46,10 @@ func (repo *repository) CreateBooks(
 		return nil
 	}
 
-	return repo.batchInsertBooks(tx, books)
+	return repo.batchInsertBooks(ctx, tx, books)
 }
 
-func (repo *repository) batchInsertBooks(tx *sql.Tx, books []Book) error {
+func (repo *repository) batchInsertBooks(ctx context.Context, tx *sql.Tx, books []*Book) error {
 	now := time.Now()
 
 	valueStrings := make([]string, 0)
@@ -71,7 +73,7 @@ func (repo *repository) batchInsertBooks(tx *sql.Tx, books []Book) error {
         INSERT INTO Books (bookId, title, isbn, createDate, modifiedDate) VALUES %s
 	`, strings.Join(valueStrings, ","))
 
-	res, err := tx.Exec(query, valueArgs...)
+	res, err := tx.ExecContext(ctx, query, valueArgs...)
 	if err != nil {
 		return err
 	}
@@ -88,22 +90,22 @@ func (repo *repository) batchInsertBooks(tx *sql.Tx, books []Book) error {
 		books[i].ID = startID + i
 	}
 
-	if err := repo.batchInsertFiles(tx, books); err != nil {
+	if err := repo.batchInsertFiles(ctx, tx, books); err != nil {
 		return nil
 	}
 
-	if err := repo.batchInsertAuthors(tx, books); err != nil {
+	if err := repo.batchInsertAuthors(ctx, tx, books); err != nil {
 		return nil
 	}
 
-	if err := repo.batchInsertTags(tx, books); err != nil {
+	if err := repo.batchInsertTags(ctx, tx, books); err != nil {
 		return nil
 	}
 
 	return nil
 }
 
-func (repo *repository) batchInsertFiles(tx *sql.Tx, books []Book) error {
+func (repo *repository) batchInsertFiles(ctx context.Context, tx *sql.Tx, books []*Book) error {
 	now := time.Now()
 
 	valuesString := make([]string, 0)
@@ -126,12 +128,12 @@ func (repo *repository) batchInsertFiles(tx *sql.Tx, books []Book) error {
             BookFiles (bookId, filePath, fileType, createDate, modifiedDate)
         VALUES %s
         `, strings.Join(valuesString, ","))
-	_, err := tx.Exec(query, valueArgs...)
+	_, err := tx.ExecContext(ctx, query, valueArgs...)
 
 	return err
 }
 
-func (repo *repository) batchInsertAuthors(tx *sql.Tx, books []Book) error {
+func (repo *repository) batchInsertAuthors(ctx context.Context, tx *sql.Tx, books []*Book) error {
 	authorValuesString := make([]string, 0)
 	authorValueArgs := make([]interface{}, 0)
 	authorParam := 1
@@ -160,7 +162,7 @@ func (repo *repository) batchInsertAuthors(tx *sql.Tx, books []Book) error {
 		query := fmt.Sprintf(`
             INSERT INTO Authors (author) VALUES %s ON CONFLICT(author) DO NOTHING
             `, strings.Join(authorValuesString, ","))
-		if _, err := tx.Exec(query, authorValueArgs...); err != nil {
+		if _, err := tx.ExecContext(ctx, query, authorValueArgs...); err != nil {
 			return err
 		}
 	}
@@ -171,7 +173,7 @@ func (repo *repository) batchInsertAuthors(tx *sql.Tx, books []Book) error {
                 VALUES %s 
             ON CONFLICT(bookId, author) DO NOTHING
             `, strings.Join(bookAuthorsString, ","))
-		if _, err := tx.Exec(query, bookAuthorsValueArgs...); err != nil {
+		if _, err := tx.ExecContext(ctx, query, bookAuthorsValueArgs...); err != nil {
 			return err
 		}
 	}
@@ -179,7 +181,7 @@ func (repo *repository) batchInsertAuthors(tx *sql.Tx, books []Book) error {
 	return nil
 }
 
-func (repo *repository) batchInsertTags(tx *sql.Tx, books []Book) error {
+func (repo *repository) batchInsertTags(ctx context.Context, tx *sql.Tx, books []*Book) error {
 	bookTagsString := make([]string, 0)
 	bookTagsValueArgs := make([]interface{}, 0)
 	bookTagsParam := 1
@@ -209,7 +211,7 @@ func (repo *repository) batchInsertTags(tx *sql.Tx, books []Book) error {
 		query := fmt.Sprintf(`
             INSERT INTO Tags (tag) VALUES %s ON CONFLICT(tag) DO NOTHING
             `, strings.Join(tagsValueStrings, ","))
-		if _, err := tx.Exec(query, tagsValueArgs...); err != nil {
+		if _, err := tx.ExecContext(ctx, query, tagsValueArgs...); err != nil {
 			return err
 		}
 	}
@@ -218,7 +220,7 @@ func (repo *repository) batchInsertTags(tx *sql.Tx, books []Book) error {
 		query := fmt.Sprintf(`
             INSERT INTO BookTags (bookId, tag) VALUES %s ON CONFLICT(bookId, tag) DO NOTHING
             `, strings.Join(bookTagsString, ","))
-		if _, err := tx.Exec(query, bookTagsValueArgs...); err != nil {
+		if _, err := tx.ExecContext(ctx, query, bookTagsValueArgs...); err != nil {
 			return err
 		}
 	}
